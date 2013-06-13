@@ -22,6 +22,11 @@ class FailoverTest(object):
                           action='store',
                           type='string',
                           default='/usr/bin/mongod')
+        parser.add_option('-v',
+                          dest='verbose',
+                          help='Make the mongod more verbose',
+                          action='count',
+                          default=0)
         (self.options, args) = parser.parse_args(args)
 
     def __init__(self, args):
@@ -35,13 +40,17 @@ class FailoverTest(object):
             port = self.options.port + i
             d = os.path.join(self.tempdir, "mongo-%d" % (port,))
             os.mkdir(d)
+            extra_args = []
+            if self.options.verbose > 0:
+                extra_args.append('-' + 'v' * self.options.verbose)
             mongo = subprocess.Popen([
                     self.options.mongod,
                     '--smallfiles', '--noprealloc', '--journal', '--nopreallocj',
                     '--port', str(port),
                     '--replSet', self.rs_name,
                     '--dbpath', d,
-                    '--logpath', os.path.join(d, 'mongo.log')])
+                    '--logpath', os.path.join(d, 'mongo.log')]
+                                     + extra_args)
             self.processes.append(mongo)
 
     def connect(self, port):
