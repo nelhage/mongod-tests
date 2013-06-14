@@ -27,6 +27,11 @@ class FailoverTest(object):
                           help='Make the mongod more verbose',
                           action='count',
                           default=0)
+        parser.add_option('--force-sync',
+                          dest='force_sync',
+                          help='Perform a large number of writes immediately before syncing',
+                          action='store_true',
+                          default=False)
         (self.options, args) = parser.parse_args(args)
 
     def __init__(self, args):
@@ -63,6 +68,11 @@ class FailoverTest(object):
                 print "Retrying..."
                 time.sleep(1)
 
+    def connect_primary(self):
+        client = self.connect(self.options.port)
+        primary_port = int(self.wait_primary(client).split(":")[1])
+        return self.connect(primary_port)
+
     def wait_primary(self, client):
         while True:
             try:
@@ -97,9 +107,13 @@ class FailoverTest(object):
         shutil.rmtree(self.tempdir)
 
     def test_failover(self):
-        client = self.connect(self.options.port)
-        primary = self.wait_primary(client)
-        client = self.connect(int(primary.split(":")[1]))
+        client = self.connect_primary()
+        primary = client['admin'].command({'isMaster': 1})['primary']
+
+        if self.options.force_sync:
+            for i in xrange(100):
+                client['test']['test-failover'].insert({"i": i}, w=0)
+
         start = time.time()
         try:
             client['admin'].command({'replSetStepDown': 1})
@@ -117,7 +131,10 @@ class FailoverTest(object):
             self.start_mongos()
             self.start_replset()
             while True:
-                time.sleep(30)
+                client = self.connect_primary()
+                for i in xrange(30):
+                    client['test']['test_failover'].insert({"heartbeat": time.time()})
+                    time.sleep(1)
                 self.test_failover()
         finally:
             self.cleanup()
