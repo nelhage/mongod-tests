@@ -1,13 +1,13 @@
 import os
 import sys
-import subprocess
 import optparse
-import tempfile
-import shutil
 import time
+import logging
 from contextlib import contextmanager
 
 import pymongo
+
+import mongo
 
 class FailoverTest(object):
     def parse_args(self, args):
@@ -37,77 +37,8 @@ class FailoverTest(object):
     def __init__(self, args):
         self.parse_args(args)
 
-    def start_mongos(self):
-        self.tempdir = tempfile.mkdtemp()
-        self.processes = []
-        self.rs_name = 'rs_%d' % os.getpid()
-        for i in xrange(3):
-            port = self.options.port + i
-            d = os.path.join(self.tempdir, "mongo-%d" % (port,))
-            os.mkdir(d)
-            extra_args = []
-            if self.options.verbose > 0:
-                extra_args.append('-' + 'v' * self.options.verbose)
-            mongo = subprocess.Popen([
-                    self.options.mongod,
-                    '--smallfiles', '--noprealloc', '--journal', '--nopreallocj',
-                    '--port', str(port),
-                    '--replSet', self.rs_name,
-                    '--dbpath', d,
-                    '--logpath', os.path.join(d, 'mongo.log')]
-                                     + extra_args)
-            self.processes.append(mongo)
-
-    def connect(self, port):
-        while True:
-            try:
-                return pymongo.MongoClient('localhost', port,
-                                           read_preference=pymongo.read_preferences.ReadPreference.PRIMARY_PREFERRED)
-            except pymongo.errors.ConnectionFailure as e:
-                print "Unable to connect: %s" % (e,)
-                print "Retrying..."
-                time.sleep(1)
-
-    def connect_primary(self):
-        client = self.connect(self.options.port)
-        primary_port = int(self.wait_primary(client).split(":")[1])
-        return self.connect(primary_port)
-
-    def wait_primary(self, client):
-        while True:
-            try:
-                primary = client['admin'].command({'isMaster': 1}).get('primary', None)
-                if primary:
-                    return primary
-            except pymongo.errors.OperationFailure as e:
-                pass
-            time.sleep(0.1)
-
-    def start_replset(self):
-        client = self.connect(self.options.port)
-        config = {
-            '_id': self.rs_name,
-            'members': []
-            }
-        for i in xrange(3):
-            config['members'].append({'_id': i, 'host': "127.0.0.1:%d" % (self.options.port + i)})
-        client['admin'].command({'replSetInitiate': config})
-        print "Waiting for the replset to initialize..."
-        self.wait_primary(client)
-        while True:
-            status = client['admin'].command({'replSetGetStatus': 1})
-            states = [m['state'] for m in status['members']]
-            if set(states) == set([1,2]):
-                return
-            time.sleep(1)
-
-    def cleanup(self):
-        for p in self.processes:
-            p.kill()
-        shutil.rmtree(self.tempdir)
-
     def test_failover(self):
-        client = self.connect_primary()
+        client = self.mongo.connect_primary()
         primary = client['admin'].command({'isMaster': 1})['primary']
 
         if self.options.force_sync:
@@ -122,22 +53,20 @@ class FailoverTest(object):
         except pymongo.errors.OperationFailure as e:
             print "Couldn't fail over: %s" % (e,)
             return
-        new_primary = self.wait_primary(client)
+        new_primary = self.mongo.wait_primary(client)
         end = time.time()
         print "Failover (%s -> %s) in %.2fs." % (primary, new_primary, end - start)
 
     def run(self):
-        try:
-            self.start_mongos()
-            self.start_replset()
+        with mongo.replset(mongod=self.options.mongod,
+                           port=self.options.port,
+                           verbose=self.options.verbose) as self.mongo:
             while True:
-                client = self.connect_primary()
+                client = self.mongo.connect_primary()
                 for i in xrange(30):
                     client['test']['test_failover'].insert({"heartbeat": time.time()})
                     time.sleep(1)
                 self.test_failover()
-        finally:
-            self.cleanup()
 
 if __name__ == '__main__':
     FailoverTest(sys.argv).run()
