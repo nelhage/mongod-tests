@@ -15,7 +15,7 @@ class ReplSet(object):
         self.verbose = verbose
 
     def start_mongos(self):
-        self.tempdir = tempfile.mkdtemp()
+        self.tempdir = tempfile.mkdtemp(prefix='mongo-test')
         self.processes = []
         self.rs_name = 'rs_%d' % os.getpid()
         for i in xrange(3):
@@ -41,8 +41,8 @@ class ReplSet(object):
                 return pymongo.MongoClient('localhost', port,
                                            read_preference=pymongo.read_preferences.ReadPreference.PRIMARY_PREFERRED)
             except pymongo.errors.ConnectionFailure as e:
-                logging.info("Unable to connect: %s" % (e,))
-                logging.info("Retrying...")
+                logging.debug("Unable to connect: %s" % (e,))
+                logging.debug("Retrying...")
                 time.sleep(1)
 
     def connect_primary(self):
