@@ -93,3 +93,20 @@ def replset(*args, **kwargs):
         yield rs
     finally:
         rs.cleanup()
+
+def add_mongod_options(parser):
+    parser.add_option('--port',
+                      help='Base port to run mongod servers on',
+                      action='store',
+                      type='int',
+                      default=9000)
+    parser.add_option('--mongod',
+                      help='Path to mongod',
+                      action='store',
+                      type='string',
+                      default='/usr/bin/mongod')
+    parser.add_option('-v',
+                      dest='verbose',
+                      help='Make the mongod more verbose',
+                      action='count',
+                      default=0)
