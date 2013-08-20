@@ -45,7 +45,8 @@ class PushTest(object):
     def run(self):
         with mongo.replset(mongod=self.options.mongod,
                            port=self.options.port,
-                           verbose=self.options.verbose) as self.mongo:
+                           verbose=self.options.verbose,
+                           quickstart=False) as self.mongo:
             while True:
                 self.test_push()
 
