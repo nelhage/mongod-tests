@@ -8,7 +8,8 @@ import pymongo
 import mongo
 
 class PushTest(object):
-    COUNT = 10000
+    COUNT = 5000
+
     def parse_args(self, args):
         parser = optparse.OptionParser("Usage: %prog [args]")
         mongo.add_mongod_options(parser)
