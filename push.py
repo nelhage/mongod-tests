@@ -31,20 +31,24 @@ class PushTest(object):
         collection = client['test']['test_push']
         collection.drop()
         _id = collection.insert({"nums": []})
+        start = time.time()
         for i in xrange(self.options.count):
             collection.update({'_id': _id}, { '$push': { 'nums': i }})
 
-        start = time.time()
+        pushed = time.time()
         status = client['admin'].command("replSetGetStatus")
 
         start_optime = [m for m in status['members'] if m['state'] == 1][0]['optimeDate']
-        logging.info("Committed %d $push's, optime=%s...", self.options.count, start_optime)
+        logging.info("Committed %d $push's in %0.1fs, optime=%s...",
+                     self.options.count,
+                     pushed - start,
+                     start_optime)
 
         logging.info("Waiting on secondaries...")
         while len([m for m in status['members'] if m['optimeDate'] < start_optime]):
             time.sleep(0.2)
             status = client['admin'].command("replSetGetStatus")
-        logging.info("Secondaries caught up in %0.2fs.", time.time() - start)
+        logging.info("Secondaries caught up in %0.1fs.", time.time() - pushed)
 
     def run(self):
         with mongo.replset(mongod=self.options.mongod,
