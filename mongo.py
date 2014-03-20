@@ -9,17 +9,18 @@ from contextlib import contextmanager
 import pymongo
 
 class ReplSet(object):
-    def __init__(self, mongod='mongod', port=9000, verbose=0, quickstart=True):
+    def __init__(self, mongod='mongod', port=9000, verbose=0, quickstart=True, nodes=3):
         self.mongod = mongod
         self.port = port
         self.verbose = verbose
         self.quickstart = quickstart
+        self.nodes = nodes
 
     def start_mongos(self):
         self.tempdir = tempfile.mkdtemp(prefix='mongo-test')
         self.processes = []
         self.rs_name = 'rs_%d' % os.getpid()
-        for i in xrange(3):
+        for i in xrange(self.nodes):
             port = self.port + i
             d = os.path.join(self.tempdir, "mongo-%d" % (port,))
             os.mkdir(d)
@@ -70,7 +71,7 @@ class ReplSet(object):
             '_id': self.rs_name,
             'members': []
             }
-        for i in xrange(3):
+        for i in xrange(self.nodes):
             config['members'].append({'_id': i, 'host': "127.0.0.1:%d" % (self.port + i)})
         client['admin'].command({'replSetInitiate': config})
         logging.info("Waiting for the replset to initialize...")
@@ -78,7 +79,7 @@ class ReplSet(object):
         while True:
             status = client['admin'].command({'replSetGetStatus': 1})
             states = [m['state'] for m in status['members']]
-            if set(states) == set([1,2]):
+            if set(states) <= set([1,2]):
                 return
             time.sleep(1)
 
