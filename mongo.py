@@ -9,12 +9,15 @@ from contextlib import contextmanager
 import pymongo
 
 class ReplSet(object):
-    def __init__(self, mongod='mongod', port=9000, verbose=0, quickstart=True, nodes=3):
+    def __init__(self, mongod='mongod', port=9000,
+                 verbose=0, quickstart=True, nodes=3,
+                 journal=True):
         self.mongod = mongod
         self.port = port
         self.verbose = verbose
         self.quickstart = quickstart
         self.nodes = nodes
+        self.journal = journal
 
     def start_mongos(self):
         self.tempdir = tempfile.mkdtemp(prefix='mongo-test')
@@ -29,10 +32,12 @@ class ReplSet(object):
                 extra_args.append('-' + 'v' * self.verbose)
             if self.quickstart:
                 extra_args.extend(['--smallfiles', '--noprealloc', '--nopreallocj'])
+            if self.journal:
+                extra_args.extend(['--journal'])
+
 
             mongo = subprocess.Popen([
                     self.mongod,
-                    '--journal',
                     '--port', str(port),
                     '--replSet', self.rs_name,
                     '--dbpath', d,
