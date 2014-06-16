@@ -3,7 +3,6 @@ import sys
 import optparse
 import time
 import logging
-from contextlib import contextmanager
 
 import pymongo
 

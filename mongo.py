@@ -8,6 +8,13 @@ from contextlib import contextmanager
 
 import pymongo
 
+class Mongodb(object):
+    def __init__(self, port):
+        self.port = port
+
+    def process(self):
+        return self.proc
+
 class ReplSet(object):
     def __init__(self, mongod='mongod', port=9000,
                  verbose=0, quickstart=True, nodes=3,
@@ -36,13 +43,15 @@ class ReplSet(object):
                 extra_args.extend(['--journal'])
 
 
-            mongo = subprocess.Popen([
+            mongo = Mongodb(port)
+            proc = subprocess.Popen([
                     self.mongod,
                     '--port', str(port),
                     '--replSet', self.rs_name,
                     '--dbpath', d,
                     '--logpath', os.path.join(d, 'mongo.log')]
                                      + extra_args)
+            mongo.proc = proc
             self.processes.append(mongo)
 
     def connect(self, port):
@@ -90,7 +99,7 @@ class ReplSet(object):
 
     def cleanup(self):
         for p in self.processes:
-            p.kill()
+            p.proc.kill()
         shutil.rmtree(self.tempdir)
 
 
